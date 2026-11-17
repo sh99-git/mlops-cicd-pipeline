@@ -1,0 +1,28 @@
+[project]
+name = "webhook"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "sh99", email = "shriramh99@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "cryptography>=50.0.2",
+    "fastapi[standard]>=0.163.1",
+    "hydra-core>=1.3.0",
+    "mlflow>=3.18.0",
+    "omegaconf>=2.4.0",
+    "pandas>=2.3.2",
+    "pydantic>=2.14.3",
+    "python-dotenv>=1.2.4",
+    "scikit-extensions>=0.2.5",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+webhook = "webhook:main"
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13.0"]
+build-backend = "uv_build"
