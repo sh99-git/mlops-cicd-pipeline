@@ -1,8 +1,9 @@
 # MLflow webhook event logger
 
 This FastAPI service receives MLflow model-version alias webhook events,
-authenticates them, and appends the original JSON payload to a CSV file with
-the UTC time it was written. It does not download or serve models.
+authenticates them, appends the original JSON payload to a CSV file, and builds
+local Docker images for the current `champion` alias. It does not push or serve
+models.
 
 ## Configure
 
@@ -67,6 +68,15 @@ that is deleted immediately afterward. It does not send a test webhook, so the
 check does not add example events to the persistent log. Events are accepted at
 `POST /webhooks/mlflow`; `GET /health` is available for a health check.
 
+The receiver requires access to a running Docker daemon. For a `property-rate`
+model, it builds local images tagged `property-rate:<version>` and
+`property-rate:champion`. When the version-tagged image already exists, it
+reuses it and moves the `champion` tag without rebuilding. On startup it also
+ensures each existing champion alias has a corresponding image. Images remain
+in the local Docker daemon; this service does not push them to a remote
+registry. Docker's normal build cache is available when a missing version
+image needs to be built.
+
 ## Event log
 
 By default, accepted webhook events and startup snapshots are appended to
@@ -85,6 +95,5 @@ unauthenticated webhook requests are not written.
 
 At startup, the service searches registered models for the `champion` alias.
 For each alias that resolves to a registered model version, it writes a row
-with `action=startup` to record the initial state. If none are found, it skips
-the snapshot. This records registry metadata; it does not download model
-artifacts.
+with `action=startup` to record the initial state and ensures the corresponding
+Docker image exists. If none are found, it skips the snapshot and image work.
