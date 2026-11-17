@@ -50,7 +50,7 @@ def find_webhook(client: MlflowClient):
 def register_webhook(client: MlflowClient):
     options = {
         "name": WEBHOOK_NAME,
-        "description": "Record MLflow alias events in the CSV event log.",
+        "description": "Build and tag local images for champion alias changes.",
         "url": WEBHOOK_URL,
         "events": [WEBHOOK_EVENT],
         "secret": WEBHOOK_SECRET,

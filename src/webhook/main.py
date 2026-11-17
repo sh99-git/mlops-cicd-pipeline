@@ -17,6 +17,7 @@ from fastapi import FastAPI, HTTPException, Request
 from mlflow import MlflowClient
 
 from webhook.config import EVENT_LOG_CSV, MLFLOW_TRACKING_URI, WEBHOOK_SECRET
+from webhook.images import ensure_champion_image, process_champion_alias_event
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ def record_startup_champions() -> None:
                 continue
 
             champion = client.get_model_version_by_alias(model.name, "champion")
+            ensure_champion_image(model.name, str(champion.version))
             timestamp = datetime.now(timezone.utc).isoformat()
             write_event(
                 {
@@ -130,6 +132,29 @@ async def mlflow_webhook(request: Request) -> dict[str, str]:
         payload_data = json.loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
         raise HTTPException(400, "Invalid webhook JSON") from None
+    if not isinstance(payload_data, dict):
+        raise HTTPException(400, "Webhook payload must be a JSON object")
 
     timestamp = await asyncio.to_thread(write_event, payload_data)
+    if (
+        payload_data.get("entity") == "model_version_alias"
+        and payload_data.get("action") == "created"
+    ):
+        event_data = payload_data.get("data")
+        if isinstance(event_data, dict) and event_data.get("alias") == "champion":
+            model_name = event_data.get("name")
+            event_version = event_data.get("version")
+            if (
+                not isinstance(model_name, str)
+                or not model_name
+                or not isinstance(event_version, str | int)
+                or isinstance(event_version, bool)
+            ):
+                raise HTTPException(400, "Invalid champion alias event data")
+
+            await asyncio.to_thread(
+                process_champion_alias_event,
+                model_name,
+                str(event_version),
+            )
     return {"status": "recorded", "written_at_utc": timestamp}
