@@ -62,19 +62,29 @@ uv run python scripts/register_webhook.py
 ```
 
 The registration script creates or updates a webhook for
-`model_version_alias.created` and sends a test event. Events are accepted at
+`model_version_alias.created` and checks the CSV writer using a temporary file
+that is deleted immediately afterward. It does not send a test webhook, so the
+check does not add example events to the persistent log. Events are accepted at
 `POST /webhooks/mlflow`; `GET /health` is available for a health check.
 
 ## Event log
 
-By default, each accepted event is appended to `state/webhook_events.csv`:
+By default, accepted webhook events and startup snapshots are appended to
+`state/webhook_events.csv`:
 
 ```csv
-written_at_utc,payload
-2026-11-16T15:58:00.123456Z,"{""entity"":""model_version_alias"",""action"":""created""}"
+entity,action,timestamp,data,written_at_utc
+model_version_alias,startup,2026-11-17T10:22:05+00:00,"{'name': 'property-rate', 'alias': 'champion', 'version': '4'}",2026-11-17T10:22:05Z
 ```
 
-The timestamp is when this service writes the row, not MLflow's event time.
-The payload is stored as a CSV-escaped JSON string. Set `WEBHOOK_EVENTS_CSV`
-to change the output path. Invalid, expired, or unauthenticated webhook
-requests are not written.
+`timestamp` is the MLflow event time for webhook deliveries and the snapshot
+time for startup rows; `written_at_utc` is when this service writes the row.
+The nested `data` mapping is rendered by pandas in the CSV cell. Set
+`WEBHOOK_EVENTS_CSV` to change the output path. Invalid, expired, or
+unauthenticated webhook requests are not written.
+
+At startup, the service searches registered models for the `champion` alias.
+For each alias that resolves to a registered model version, it writes a row
+with `action=startup` to record the initial state. If none are found, it skips
+the snapshot. This records registry metadata; it does not download model
+artifacts.

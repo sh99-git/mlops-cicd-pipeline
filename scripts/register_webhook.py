@@ -1,10 +1,14 @@
 import logging
 import os
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from mlflow import MlflowClient
+from webhook.main import write_event
 
 
 load_dotenv()
@@ -62,19 +66,33 @@ def register_webhook(client: MlflowClient):
     return client.create_webhook(**options)
 
 
+def verify_csv_writer() -> None:
+    event = {
+        "entity": "model_version_alias",
+        "action": "created",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "data": {
+            "name": "example_model",
+            "alias": "example_alias",
+            "version": "1",
+        },
+    }
+
+    with TemporaryDirectory(prefix="mlflow-webhook-test-") as temp_dir:
+        csv_path = Path(temp_dir) / "webhook_events.csv"
+        write_event(event, csv_path)
+        if not csv_path.is_file():
+            raise RuntimeError("Temporary CSV writer check did not create its CSV")
+
+    logger.info("Temporary CSV writer check succeeded")
+
+
 def main() -> None:
     validate_config()
     client = MlflowClient(tracking_uri=TRACKING_URI)
     webhook = register_webhook(client)
     logger.info("Registered webhook %s at %s", webhook.name, webhook.url)
-
-    result = client.test_webhook(webhook.webhook_id, event=WEBHOOK_EVENT)
-    if not result.success:
-        raise RuntimeError(
-            f"Webhook test failed ({result.response_status}): "
-            f"{result.error_message}"
-        )
-    logger.info("Webhook test succeeded")
+    verify_csv_writer()
 
 
 if __name__ == "__main__":
